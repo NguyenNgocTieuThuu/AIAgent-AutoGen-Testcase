@@ -1,0 +1,316 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jira-webhook",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        100
+      ],
+      "id": "8d113702-5f96-46d1-9dd8-77dc0e08d025",
+      "name": "Webhook",
+      "webhookId": "254958cb-111c-4da7-9ced-e21d2538fee7"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bec21c31-ac12-40bc-9726-ba8ee36747a0",
+              "name": "issue_key",
+              "value": "={{ $json.body.issue.key }}",
+              "type": "string"
+            },
+            {
+              "id": "bc37d96b-5e57-4f4b-9e36-7c10f0a5735b",
+              "name": "summary",
+              "value": "={{ $json.body.issue.fields.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "c1690f43-7245-4f45-bef8-567c22abf231",
+              "name": "description",
+              "value": "={{ $json.body.issue.fields.description }}",
+              "type": "string"
+            },
+            {
+              "id": "37d6e551-66b1-4bc0-a55d-11df050e04e7",
+              "name": "status",
+              "value": "={{ $json.body.issue.fields.status.name }}",
+              "type": "string"
+            },
+            {
+              "id": "27d388bf-3d58-40c6-88b5-c971a83a4bde",
+              "name": "issue_type",
+              "value": "={{ $json.body.issue.fields.issuetype.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -720,
+        100
+      ],
+      "id": "65e162f5-c39d-4169-a54b-c69ed2da820e",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy tất cả items từ input\nconst items = $input.all();\n\n// Kiểm tra nếu không có item nào\nif (!items || items.length === 0) {\n  return [{\n    json: {\n      is_valid: false,\n      errors: ['No input data received']\n    }\n  }];\n}\n\n// Xử lý từng item\nreturn items.map((item, index) => {\n  const data = item.json || {};\n  let errors = [];\n\n  // Kiểm tra issue_key\n  if (!data.issue_key || typeof data.issue_key !== 'string' || data.issue_key.trim() === '') {\n    errors.push('Issue Key is missing or invalid');\n  }\n\n  // Kiểm tra summary\n  if (!data.summary || typeof data.summary !== 'string' || data.summary.trim() === '') {\n    errors.push('Summary is missing or empty');\n  }\n\n  // Kiểm tra description\n  if (!data.description || typeof data.description !== 'string' || data.description.trim() === '') {\n    errors.push('Description is missing or empty');\n  } else if (data.description.length < 10) {\n    errors.push('Description is too short (less than 10 characters)');\n  }\n\n  // Trả về dữ liệu với trạng thái hợp lệ\n  return {\n    json: {\n      ...data,\n      is_valid: errors.length === 0,\n      errors: errors\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        100
+      ],
+      "id": "7fd7b7ae-e07b-43ca-bb0c-2fae604cd003",
+      "name": "Validate Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bb639a39-6a0d-4805-b754-090c655419fc",
+              "leftValue": "={{$node['Validate Data'].json['is_valid']}}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -300,
+        100
+      ],
+      "id": "738a8208-1bb8-43c4-b092-7ab9fe31763e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $node[\"HTTP Request OpenAI\"].json.choices[0].message.content;\nconst issueKey = $node[\"HTTP Request OpenAI\"].json.issueKey || \"Default_Sheet\";\nconst testCases = [];\nconst lines = response.split('\\n');\n\nlet currentTestCase = null;\n\nlines.forEach(line => {\n  line = line.trim();\n  if (line.startsWith('Test Case ID:')) {\n    currentTestCase = { testCaseId: line.replace('Test Case ID:', '').trim(), testSteps: [] };\n    testCases.push(currentTestCase);\n  } else if (line.startsWith('Description:') && currentTestCase) {\n    currentTestCase.description = line.replace('Description:', '').trim();\n  } else if (line.startsWith('Preconditions:') && currentTestCase) {\n    currentTestCase.preconditions = line.replace('Preconditions:', '').trim();\n  } else if (line.startsWith('Test Steps:') && currentTestCase) {\n    // Test steps bắt đầu\n  } else if (line.match(/^\\d+\\./) && currentTestCase) {\n    currentTestCase.testSteps.push(line);\n  } else if (line.startsWith('Expected Result:') && currentTestCase) {\n    currentTestCase.expectedResult = line.replace('Expected Result:', '').trim();\n  } else if (line.startsWith('Priority:') && currentTestCase) {\n    currentTestCase.priority = line.replace('Priority:', '').trim();\n  }\n});\n\nreturn testCases.map((tc, i) => ({\n  json: {\n    issue: $('If').first().json.issue_key,  // Dòng thêm vào để dùng động trong Google Sheets node\n    testCaseId: tc.testCaseId || `TC${i + 1}`,\n    description: tc.description,\n    preconditions: tc.preconditions,\n    testSteps: tc.testSteps.join('\\n'),\n    expectedResult: tc.expectedResult,\n    priority: tc.priority,\n    createdAt: new Date().toISOString()\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        80
+      ],
+      "id": "0caf07e6-f8a3-4b95-99c9-0c896ceb76c6",
+      "name": "Testcase Format"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items || items.length === 0) {\n  throw new Error('Không có dữ liệu đầu vào');\n}\n\n// Lấy tên issue từ json hoặc dùng mặc định\nconst issueKey = items[0].json.issue || 'DanhSachTestCase';\nconst fileName = `${issueKey}_DanhSachTestCase.csv`;\n\n// ✅ Tiêu đề cột bằng tiếng Việt\nconst headers = [\n  'Mã Test Case', 'Mô tả', 'Điều kiện tiên quyết', 'Các bước kiểm thử',\n  'Kết quả mong đợi', 'Mức độ ưu tiên', 'Ngày tạo'\n];\n\n// Hàm xử lý giá trị cho CSV\nconst escapeCSV = (value) => `\"${String(value || '').replace(/\"/g, '\"\"')}\"`;\n\n// Chuyển từng dòng thành CSV\nconst rows = items.map(item => [\n  item.json.testCaseId, item.json.description, item.json.preconditions,\n  item.json.testSteps, item.json.expectedResult, item.json.priority,\n  item.json.createdAt\n].map(escapeCSV).join(','));\n\n// ✅ Thêm BOM để Excel nhận mã hóa UTF-8 (quan trọng!)\nconst BOM = '\\uFEFF';\nconst csvContent = BOM + [headers.map(escapeCSV).join(','), ...rows].join('\\n');\n\n// Tạo buffer và binary object\nconst buffer = Buffer.from(csvContent, 'utf8');\nconst binaryData = await this.helpers.prepareBinaryData(buffer, fileName, 'text/csv');\n\nreturn {\n  binary: {\n    data: binaryData\n  },\n  json: {\n    filename: fileName,\n    issueKey: issueKey\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        80
+      ],
+      "id": "e502a22c-f1e8-4bf5-bbbf-cfa0ccaf1adf",
+      "name": "Generate CSV"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://testcase-generator.atlassian.net/rest/api/3/issue/{{$node[\"Testcase Format\"].json.issue}}/attachments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Atlassian-Token",
+              "value": "no-check"
+            },
+            {
+              "name": "X-Requested-With",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "=file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        360
+      ],
+      "id": "0dcb3a05-0046-4ef5-b136-1015dd3f63c0",
+      "name": "HTTP Request Jira",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "j1w6zxAiT1jzOt2O",
+          "name": "Jira credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://example.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"model\": \"gpt-3.5-turbo\",\n  \"temperature\": 0.3,\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Bạn là chuyên viên kiểm thử ISTQB, hãy viết test case với độ bao phủ cao, đầy đủ các loại: valid, invalid, edge case, exception. Trả lời hoàn toàn bằng tiếng Việt.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Viết các test case theo định dạng sau:\\nTest Case ID: TCxxx\\nDescription: ...\\nPreconditions: ...\\nTest Steps:\\n1. ...\\nExpected Result: ...\\nPriority: ...\\n\\nThông tin chức năng:\\nTên: Viết testcase cho chức năng đăng nhập\\nMô tả: Bao gồm 2 field là username và password\\nLoại: Task\\n\\nLưu ý: Toàn bộ nội dung phải viết bằng tiếng Việt.\"\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "093da360-abf5-49f7-8e9a-3eef3c8cf96c",
+      "name": "HTTP Request OpenAI"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Validate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Data": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Testcase Format": {
+      "main": [
+        [
+          {
+            "node": "Generate CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate CSV": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Testcase Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2a7039ae-3bcb-43e2-93fd-8552f3cade5c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "af150a761a701bfd67618531a860185d84cb4665a2254a637ad1bf592d57b0bd"
+  },
+  "id": "S1NAQGXf4fE0XOYv",
+  "tags": []
+}
