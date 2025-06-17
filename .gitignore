@@ -1,0 +1,20 @@
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# ===== Node.js =====
+package-lock.json
+*.log
+# ===== Environment Variables =====
+.env
+# ===== TypeScript =====
+dist/
+*.tsbuildinfo
+# ===== VSCode =====
+.vscode/
+.history/
+# ===== Optional Example Test Folder =====
+tests-examples/
