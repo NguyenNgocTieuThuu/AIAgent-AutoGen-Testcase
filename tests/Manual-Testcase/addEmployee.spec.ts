@@ -146,3 +146,112 @@ test('Add with employeeId not existed and 10 character', async ({page})=>{
     const error =  page.getByText("Should not exceed 10 characters");
     await expect(error).not.toBeVisible();
 })
+
+//username existed
+test('Add with username existed ', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const usernameInput = page.locator('div.oxd-input-group input.oxd-input').nth(4); // kiểm tra đúng index
+    await expect(usernameInput).toBeVisible();
+    await usernameInput.fill('nguyenngoctieuthu');
+    await page.waitForTimeout(5000);
+    const error = page.getByText('Username already exists');
+    await expect(error).toBeVisible();
+})
+//username not existed and 4 characters
+test('Add with username not existed and 4 characters', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const usernameInput = page.locator('div.oxd-input-group input.oxd-input').nth(4); // kiểm tra đúng index
+    await expect(usernameInput).toBeVisible();
+    await usernameInput.fill('thuu');
+    
+    const error = page.getByText('Should be at least 5 characters');
+    await expect(error).toBeVisible();
+})
+//username not existed and 5 characters
+test('Add with username not existed and 5 characters', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const usernameInput = page.locator('.oxd-input-group:has(label:has-text("Username")) input.oxd-input'); // kiểm tra đúng index
+    await expect(usernameInput).toBeVisible();
+    await usernameInput.fill('nguye');
+    
+    const error = page.getByText('Should be at least 5 characters');
+    await expect(error).not.toBeVisible();
+})
+//username not existed and 255 characters
+test('Add with username not existed and 255 characters', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const usernameInput = page.locator('.oxd-input-group:has(label:has-text("Username")) input.oxd-input'); // kiểm tra đúng index
+    await expect(usernameInput).toBeVisible();
+    await usernameInput.fill(getLongtext(255));
+    
+    const error = page.getByText('Should not exceed 40 characters');
+    await expect(error).toBeVisible();
+})
+
+//password valid with 8 characters
+test('Add with password valid and 8 characters', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('input[type="password"]').first(); 
+    await pass.fill('Test@123');
+    
+    const error = page.getByText('Should have at least 8 characters');
+    await expect(error).not.toBeVisible();
+})
+//password invalid with 7 characters
+test('Add with password valid and 7 characters', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('div:has(label:has-text("Password")) input[type="password"]').first(); 
+    await pass.fill('Test@12');
+    
+    const error = page.getByText('Should have at least 8 characters');
+    await expect(error).toBeVisible(); 
+})
+//password not has an upercase
+test('Add with password not has an upercase', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('div:has(label:has-text("Password")) input[type="password"]').first(); 
+    await pass.fill('test@123');
+    
+    const error = page.getByText('Your password must contain minimum 1 upper-case letter');
+    await expect(error).toBeVisible(); 
+})
+//password not has a lower-case
+test('Add with password not has an lower-case', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('div:has(label:has-text("Password")) input[type="password"]').first();; 
+    await pass.fill('TEST@123');
+    
+    const error = page.getByText('Your password must contain minimum 1 lower-case letter');
+    await expect(error).toBeVisible(); 
+})
+//password not has a special character
+test('Add with password not has a special character', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('div:has(label:has-text("Password")) input[type="password"]').first(); 
+    await pass.fill('Test0123');
+    
+    const error = page.getByText('Your password must contain minimum 1 special character');
+    await expect(error).toBeVisible(); 
+})
+
+
+//Confirm Password match Password
+test('Add with Confirm Password match Password', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('div:has(label:has-text("Password")) input[type="password"]'); 
+    await pass.first().fill('Tieuthu123@##');
+    await pass.last().fill('Tieuthu123@##');
+    
+    const error = page.getByText('Passwords do not match');
+    await expect(error).not.toBeVisible(); 
+})
+//Confirm Password not match Password
+test('Add with Confirm Password not match Password', async ({page})=>{
+    await page.locator('span.oxd-switch-input').click(); // bật toggle
+    const pass = page.locator('div:has(label:has-text("Confirm Password")) input[type="password"]'); 
+    await pass.first().fill('Tieuthu123@##');
+    await pass.last().fill('Tthu123@')
+    await page.waitForTimeout(1500);
+    const error = page.getByText('Passwords do not match');
+    await expect(error).toBeVisible(); 
+})
