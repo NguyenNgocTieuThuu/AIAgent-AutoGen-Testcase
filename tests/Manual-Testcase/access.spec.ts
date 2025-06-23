@@ -14,3 +14,11 @@ test.beforeEach(async ({page})=>{
 test('Add employee without account', async ({page}) => {
     
 })
+// add employee with account enable
+test('Add employee with account enable', async ({page}) => {
+    
+})
+// add employee with account disable
+test('Add employee with account disable', async ({page}) => {
+    
+})
