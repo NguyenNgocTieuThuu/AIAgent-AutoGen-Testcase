@@ -1,0 +1,912 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jira-webhook",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1740,
+        220
+      ],
+      "id": "c6b8b552-58c4-4429-96ca-d3a0b2545d79",
+      "name": "Webhook",
+      "webhookId": "254958cb-111c-4da7-9ced-e21d2538fee7"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bec21c31-ac12-40bc-9726-ba8ee36747a0",
+              "name": "issue_key",
+              "value": "={{ $json.body.issue.key }}",
+              "type": "string"
+            },
+            {
+              "id": "bc37d96b-5e57-4f4b-9e36-7c10f0a5735b",
+              "name": "summary",
+              "value": "={{ $json.body.issue.fields.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "c1690f43-7245-4f45-bef8-567c22abf231",
+              "name": "description",
+              "value": "={{ $json.body.issue.fields.description }} ",
+              "type": "string"
+            },
+            {
+              "id": "37d6e551-66b1-4bc0-a55d-11df050e04e7",
+              "name": "status",
+              "value": "={{ $json.body.issue.fields.status.name }}",
+              "type": "string"
+            },
+            {
+              "id": "27d388bf-3d58-40c6-88b5-c971a83a4bde",
+              "name": "issue_type",
+              "value": "={{ $json.body.issue.fields.issuetype.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1580,
+        80
+      ],
+      "id": "cef1f63a-a2d2-463f-bf1e-7d2c056d917e",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy tất cả items từ input\nconst items = $input.all();\n\nif (!items || items.length === 0) {\n  return [{\n    json: {\n      is_valid: false,\n      errors: ['No input data received']\n    }\n  }];\n}\n\n// Biến dùng để tránh URL trùng trong toàn bộ workflow\nconst seenUrls = new Set();\n\n// Hàm trích xuất và làm sạch URL\nfunction cleanDescriptionAndExtractUrl(text) {\n  // Bước 1: Làm sạch URL lặp kiểu [url|url] ➝ url\n  const cleaned = text.replace(/\\[(https?:\\/\\/[^\\|\\]]+)\\|\\1\\]/g, '$1');\n\n  // Bước 2: Tìm URL chưa trùng\n  const urlRegex = /https?:\\/\\/[^\\s\\|\\]\\)\"]+/gi;\n  const matches = cleaned.match(urlRegex);\n  if (!matches) return { cleaned, extractedUrl: null };\n\n  const uniqueUrl = matches.find(url => !seenUrls.has(url));\n  if (uniqueUrl) seenUrls.add(uniqueUrl);\n\n  return {\n    cleaned,\n    extractedUrl: uniqueUrl || null\n  };\n}\n\n// Xử lý từng item\nreturn items.map(item => {\n  const data = item.json || {};\n  let errors = [];\n\n  if (!data.issue_key || typeof data.issue_key !== 'string' || data.issue_key.trim() === '') {\n    errors.push('Issue Key is missing or invalid');\n  }\n\n  if (!data.summary || typeof data.summary !== 'string' || data.summary.trim() === '') {\n    errors.push('Summary is missing or empty');\n  }\n\n  if (!data.description || typeof data.description !== 'string' || data.description.trim() === '') {\n    errors.push('Description is missing or empty');\n  } else if (data.description.length < 10) {\n    errors.push('Description is too short (less than 10 characters)');\n  }\n\n  // Làm sạch description và lấy URL\n  const { cleaned, extractedUrl } = cleanDescriptionAndExtractUrl(data.description);\n  if (!extractedUrl) {\n    errors.push('No valid unique URL found in description');\n  }\n\n  return {\n    json: {\n      ...data,\n      description: cleaned,  // Ghi đè lại description đã làm sạch\n      is_valid: errors.length === 0,\n      errors\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1420,
+        80
+      ],
+      "id": "c0cd67a9-1507-481c-86b4-67316efab5d1",
+      "name": "Validate Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bb639a39-6a0d-4805-b754-090c655419fc",
+              "leftValue": "={{$node['Validate Data'].json['is_valid']}}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1260,
+        80
+      ],
+      "id": "b6922dab-d53f-407d-98b6-c6fdf35ced9b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://playwright-service-production-68cf.up.railway.app/execute-test",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        420
+      ],
+      "id": "aa865c3c-7375-483c-940d-1800145ecb67",
+      "name": "HTTP Request Playwright Service"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ad34e777-0949-4f71-a84b-5fae9f997ceb",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "=failed",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -820,
+        840
+      ],
+      "id": "42f88d4e-c949-4165-9651-3f4e0ed38d63",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $items(\"MergeData\")[0];\nconst source = item.json;\nconst data = $input.item.json;\n\n// Lọc HTML: chỉ lấy form/input/button/label\nfunction extractEssentialHTML(html) {\n  return (html || \"\")\n    .match(/<(form|input|button|label|select|textarea|span)[^>]*>/gi)\n    ?.join(\" \")\n    .replace(/\\s+/g, \" \")\n    .replace(/\"/g, \"'\")\n    .slice(0, 3000) || \"\";\n}\n\n// Làm sạch text khác\nfunction clean(str) {\n  return (str || \"\")\n    .toString()\n    .replace(/\"/g, \"'\")\n    .replace(/\\s+/g, \" \")\n    .trim()\n    .slice(0, 2000);\n}\n\nconst html = extractEssentialHTML(source.html);\nconst testCase = clean(JSON.stringify(data.testCase || {}));\nconst errors = clean(\n  (data.results || [])\n    .filter(r => r.status === \"failed\" && r.error)\n    .map(r => r.error)\n    .join(\" | \")\n);\nconst retryHistory = data.retryHistory || [];\nconst historySummary = retryHistory.map(h => \n  `Attempt ${h.attempt}: TestCase=${clean(JSON.stringify(h.testCase))}, Error=${h.error}`\n).join(\" | \");\n\n// ✅ JSON escape đoạn mẫu định dạng JSON\nconst formatExample = '{\\\\\"testCase\\\\\":{\\\\\"id\\\\\":\\\\\"...\\\\\" ,\\\\\"name\\\\\":\\\\\"...\\\\\" ,\\\\\"steps\\\\\":[{\\\\\"action\\\\\":\\\\\"goto\\\\\",\\\\\"url\\\\\":\\\\\"...\\\\\"},';\n\n// Tạo prompt hoàn chỉnh — không chứa JSON thô\nconst prompt =\n  `Bạn là chuyên gia Playwright. Dữ liệu kiểm thử: ` +\n  `- Testcase hiện tại: ${testCase} ` +\n  `- Lỗi gặp phải: ${errors}, Lịch sử lỗi: ${retryHistory}`  +\n  `- Html hiện tại: ${html} ` +\n  `Phân tích lỗi, tránh lặp giải pháp cũ. Tạo lại testcase theo định dạng ${formatExample}, với:` +\n  `1. Sử dụng selector mạnh (ưu tiên theo thứ tự): [data-testid], getByRole, [aria-label], [name], [placeholder], .class1.class2, text. ` +\n  `2. Tránh selector yếu hoặc phụ thuộc vị trí (nth-child, xpath, index...).` +\n  `3. Nếu không tìm thấy selector phù hợp, để mảng steps là rỗng. ` +\n  `Chỉ trả về đối tượng JSON hợp lệ theo định dạng giống testcase ban đầu, không thêm bất kỳ mô tả hay nhận xét nào khác, không markdown.Lưu ý các step pass trong testcase cũ vẫn giữ nguyên và cập nhật lại code của step bị failed. Trả về  testcase sau khi được sửa đổi`;\n\nreturn [{\n  json: {\n    prompt: JSON.stringify(prompt)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        820
+      ],
+      "id": "ce5ba906-a74a-4dbd-a526-91abc5847a88",
+      "name": "Fix Bug",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const steps = $json.testSteps || \"\";\n\n// Bắt URL (dù có dấu chấm cuối)\nconst match = steps.match(/https?:\\/\\/[^\\s]+/);\n\n// Nếu có URL, loại bỏ dấu chấm cuối nếu tồn tại\nlet extractedUrl = match ? match[0].trim() : null;\n\nif (extractedUrl && extractedUrl.endsWith(\".\")) {\n  extractedUrl = extractedUrl.slice(0, -1); // cắt dấu chấm cuối\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      extractedUrl,\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1220,
+        440
+      ],
+      "id": "176a48c2-7783-4b4e-929e-7204b09e7f23",
+      "name": "Extract URL"
+    },
+    {
+      "parameters": {
+        "url": "=https://playwright-service-production-68cf.up.railway.app/get-dom?url={{ $json.extractedUrl }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -940,
+        340
+      ],
+      "id": "99f3784f-8fff-46f2-b6d0-8973ee710bcb",
+      "name": "HTTP Request DOM"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -720,
+        420
+      ],
+      "id": "c73e9940-cff9-4602-8038-40b0fb998323",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Lấy item chứa DOM\nconst domItem = items.find(item => item.json.html);\nconst testCaseItem = items.find(item => item.json.testCaseId);\n\n// Gộp lại\nreturn [{\n  json: {\n    ...testCaseItem.json,\n    ...domItem.json\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        420
+      ],
+      "id": "c41b01a5-2c3b-47d4-972f-9c30885fd791",
+      "name": "MergeData"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hàm escape để an toàn khi đưa vào JSON\nfunction escape(str) {\n  return (str || \"\")\n    .toString()\n    .replace(/\\\\/g, \"\\\\\\\\\")\n    .replace(/\"/g, '\\\\\"')\n    .replace(/\\n/g, \" \")\n    .replace(/\\r/g, \"\")\n    .trim()\n    .slice(0, 1000); // Giới hạn độ dài để tránh lỗi khi gửi\n}\n\n// Hàm tối ưu HTML: chỉ lấy các thẻ quan trọng\nfunction optimizeHtml(html) {\n  return (html || \"\")\n    .match(/<(form|input|button|label|select|textarea|span)[^>]*>/gi)\n    ?.join(\" \")\n    .replace(/\\s+/g, \" \")\n    .replace(/\"/g, \"'\")\n    .trim()\n    .slice(0, 1000) || \"\";\n}\n\nconst prompt =\n  `Dựa vào thông tin sau, hãy trả về một object phải đúng định dạng sau: ` +\n  `{\\\\\"testCase\\\\\":{\\\\\"id\\\\\":\\\\\"...\\\\\" ,\\\\\"name\\\\\":\\\\\"...\\\\\" ,\\\\\"steps\\\\\":[{\\\\\"action\\\\\":\\\\\"goto\\\\\",\\\\\"url\\\\\":\\\\\"...\\\\\"},{\\\\\"action\\\\\":\\\\\"fill\\\\\",\\\\\"selector\\\\\":\\\\\"...\\\\\" ,\\\\\"value\\\\\":\\\\\"...\\\\\"},{\\\\\"action\\\\\":\\\\\"click\\\\\",\\\\\"selector\\\\\":\\\\\"...\\\\\"},{\\\\\"action\\\\\":\\\\\"expect\\\\\",\\\\\"selector\\\\\":\\\\\"...\\\\\" ,\\\\\"assertionType\\\\\":\\\\\"toHaveText\\\\\",\\\\\"expectedValue\\\\\":\\\\\"...\\\\\"}]}}.` +\n  ` Mã: ${escape($json.testCaseId)} | Mô tả: ${escape($json.description)} | Bước kiểm thử: ${escape($json.testSteps)} | Kết quả mong đợi: ${escape($json.expectedResult)} | HTML (${escape($json.selectorUsed)}): ${escape(optimizeHtml($json.html))}` +\n  `. Thứ tự ưu tiên selector: #id > [data-testid] > getbyrole> [aria-label] > [name] > [placeholder] > tag.class1.class2 > text. Mọi click phải có waitForSelector, fallback nếu lỗi. Tránh gây các lỗi cơ bản như thao tác click mà đi với selector input. Trích xuất thất kĩ đoạn html để cho ra các selector đúng. Phải bám sát vào html không nên tập trung quá vào id` +\n  `Không lặp lại selector và tránh selector yếu (ví dụ chọn bằng vị trí). Nếu không có selector phù hợp, trả về mảng rỗng. ` +\n  `Chỉ trả về đối tượng, không thêm văn bản hoặc markdown nào khác.`;\n\nreturn [{\n  json: {\n    prompt\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        420
+      ],
+      "id": "9f0f385a-c45a-4418-8075-7b17df1bb305",
+      "name": "Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://playwright-service-production-68cf.up.railway.app/execute-test",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        820
+      ],
+      "id": "8de84aa5-a0cf-4f2b-bedd-271433352c79",
+      "name": "HTTP Request Playwright Service1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.first();\nconst allResults = inputData.json.allResults || []; // Lấy mảng kết quả từ Aggregate Results\nconst initialItems = $node['Testcase Format'].all(); // Lấy test case ban đầu từ Code\n\nconst issueKey = allResults[0]?.issue_key || initialItems[0]?.json?.issue || 'Unknown';\n\nconst headers = ['Test Case ID', 'Description', 'Test Steps', 'Expected Result', 'Status', 'Errors'];\nconst rows = allResults.map((result, index) => {\n  const initial = initialItems.find(item => item.json.testCaseId === result.testCaseId)?.json || {};\n  return [\n    result.testCaseId || initial.testCaseId || `TC${index + 1}`,\n    initial.description || '',\n    initial.testSteps || '',\n    initial.expectedResult || '',\n    result.status,\n    result.errors\n  ].map(escapeCSV).join(',');\n});\n\nconst escapeCSV = (str) => `\"${String(str || '').replace(/\"/g, '\"\"')}\"`;\nconst csvContent = '\\uFEFF' + [headers.map(escapeCSV).join(','), ...rows].join('\\n');\nconst binaryData = Buffer.from(csvContent, 'utf-8');\nconst fileName = `${issueKey}_TestReport.csv`;\n\nreturn [{\n  json: { filename: fileName, issueKey },\n  binary: { data: binaryData }\n}];\n\nfunction escapeCSV(str) {\n  if (str === null || str === undefined) return '\"\"';\n  return `\"${String(str).replace(/\"/g, '\"\"')}\"`;\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        940
+      ],
+      "id": "bd795cc2-a821-4a4d-8878-e0721f9d6c6d",
+      "name": "Save Report"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawContent = $json.output;\nconst inputItem = $input.item || {};\nconst inputJson = inputItem.json || {};\n\nlet parsed;\ntry {\n  const cleaned = rawContent.replace(/^```(?:json)?\\s*/i, '').replace(/```$/, '');\n  parsed = JSON.parse(cleaned);\n} catch (err) {\n  return [{\n    json: {\n      ...inputJson,\n      error: 'Failed to parse JSON from GPT response',\n      raw: rawContent,\n      message: err.message,\n      status: 'failed' // Đặt status rõ ràng nếu lỗi\n    }\n  }];\n}\n\n// Giả sử Playwright Service trả về status trong parsed\nconst newStatus = parsed.status || 'failed'; // Mặc định failed nếu không có status\n\n// Log để debug\nconsole.log(`ScriptFormat1: Parsed status = ${newStatus}, TestCaseId = ${inputJson.testCaseId}`);\n\n// Kết hợp dữ liệu, đảm bảo status mới\nreturn [{\n  json: {\n    ...parsed,   \n    status: newStatus // Ghi đè status\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        820
+      ],
+      "id": "53b1825a-4c4c-4625-87a7-b3d69b02b508",
+      "name": "ScriptFormat1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        420
+      ],
+      "id": "15fe9f40-f249-41fe-a8fa-918a6e4a50f6",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        820
+      ],
+      "id": "4c91070e-caf4-4872-a64b-8709e9c6e890",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o3-mini",
+          "mode": "list",
+          "cachedResultName": "o3-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -180,
+        600
+      ],
+      "id": "ff9756f3-2638-43c4-9be4-ed1aad31f59b",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "cttC0NNsk5FQWkVT",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o3-mini",
+          "mode": "list",
+          "cachedResultName": "o3-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -380,
+        1020
+      ],
+      "id": "9c8895bf-fcaf-46b1-a166-d0ec269f9913",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "cttC0NNsk5FQWkVT",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('If1').item.json.testCaseId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -200,
+        1020
+      ],
+      "id": "5ff5ab36-bc26-4177-968a-c2ef82a6e5b4",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\"Viết các test case theo định dạng sau:\\nTest Case ID: TCxxx\\nMô tả: ...\\nTiền điều kiện: ...\\nCác bước thực hiện:\\n1. ...\\nDữ liệu kiểm thử:\\n1. ...\\nKết quả mong đợi: ...\\n\\nThông tin chức năng:\\nTên:  {{ $json.summary }}\\nMô tả: {{ $json.description }}\\nLoại: Task\\n\\nLưu ý: Đối với test step phải có url của trang web tương ứng, url đúng định dạng tránh bị trùng, Toàn bộ nội dung phải viết bằng tiếng Việt. Trả về kết quả dưới dạng đối tượng JSON thuần, không thêm markdown hoặc giải thích. Đặt tên bộ tesst là testCases\"",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1060,
+        60
+      ],
+      "id": "1a517c96-cb7e-490f-8b0a-3f2f318401a3",
+      "name": "AI Agent2"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "=gpt-4o-mini",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1080,
+        260
+      ],
+      "id": "2936788f-7e47-464b-82c7-c79990f5c9ec",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "cttC0NNsk5FQWkVT",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "testCaseId",
+              "field2": "testCase.id"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        680,
+        560
+      ],
+      "id": "4ac2da39-1f86-4f0b-9ede-eba4ffb14578",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawItem = $json.output;\n\nlet result;\n\ntry {\n  // Nếu chuỗi là dạng JSON thuần chưa escape, bạn cần escape trước\n  const clean = rawItem.replace(/\\/\\/.*$/gm, ''); // bỏ comment nếu còn\n\n  const parsed = JSON.parse(clean); //parse được object thật\n\n  return [{ json: parsed }];\n} catch (e1) {\n  try {\n    // Nếu lỗi do chuỗi bị escape thiếu => escape thêm rồi parse lần 2\n    const doubleParsed = JSON.parse(JSON.parse(JSON.stringify(rawItem)));\n    return [{ json: doubleParsed }];\n  } catch (e2) {\n    return [{\n      json: {\n        error: 'Failed to parse JSON',\n        raw: rawItem,\n        message: e2.message\n      }\n    }];\n  }\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        420
+      ],
+      "id": "fdaedd4a-4746-40ad-a6dc-fbdcea4deade",
+      "name": "ScriptFormat"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\nconst results = item.results || [];\nconst testCaseId = item.testCaseId || 'Unknown';\n\nconst index = item.__index ?? 0;\nconst total = item.__total ?? 0;\nconst allTestCases = item.__allTestCases || [];\nconst priorResults = item.__allResults || [];\n\nlet status = 'passed';\nlet failedStepIndex = null;\nlet errorMessage = '';\n\nfor (let i = 0; i < results.length; i++) {\n  if (results[i].status === 'failed') {\n    status = 'failed';\n    failedStepIndex = i;\n    errorMessage = results[i].error || 'Unknown error';\n    break;\n  }\n}\n\n// Gộp kết quả mới\nconst updatedResults = [...priorResults, {\n  testCaseId,\n  status,\n  failedStep: failedStepIndex,\n  error: errorMessage\n}];\n\n// Nếu còn test case → tiếp tục vòng\nif (index + 1 < total) {\n  const nextTestCase = allTestCases[index + 1];\n\n  return [{\n    json: {\n      ...nextTestCase,\n    }\n  }];\n}\n\n// Hết test case → trả toàn bộ kết quả\nreturn [{\n  json: {\n    allResults: updatedResults,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        940
+      ],
+      "id": "f6b7c7bc-e417-44d5-9dc9-64af767dd527",
+      "name": "Results",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items || items.length === 0) {\n  throw new Error('Không có dữ liệu đầu vào');\n}\n\n// Lấy tên issue từ json hoặc dùng mặc định\nconst issueKey = items[0].json.issue || 'DanhSachTestCase';\nconst fileName = `${issueKey}_DanhSachTestCase.csv`;\n\n// ✅ Tiêu đề cột bằng tiếng Việt\nconst headers = [\n  'Mã Test Case', 'Mô tả', 'Điều kiện tiên quyết', 'Các bước kiểm thử',\n  'Kết quả mong đợi', 'Ngày tạo'\n];\n\n// Hàm xử lý giá trị cho CSV\nconst escapeCSV = (value) => `\"${String(value || '').replace(/\"/g, '\"\"')}\"`;\n\n// Chuyển từng dòng thành CSV\nconst rows = items.map(item => [\n  item.json.testCaseId, item.json.preconditions, item.json.description, \n  item.json.testSteps, item.json.expectedResult, item.json.createdAt\n].map(escapeCSV).join(','));\n\n// ✅ Thêm BOM để Excel nhận mã hóa UTF-8 (quan trọng!)\nconst BOM = '\\uFEFF';\nconst csvContent = BOM + [headers.map(escapeCSV).join(','), ...rows].join('\\n');\n\n// Tạo buffer và binary object\nconst buffer = Buffer.from(csvContent, 'utf8');\nconst binaryData = await this.helpers.prepareBinaryData(buffer, fileName, 'text/csv');\n\nreturn {\n  binary: {\n    data: binaryData\n  },\n  json: {\n    filename: fileName,\n    issueKey: issueKey\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        60
+      ],
+      "id": "63f046d0-b327-410f-b639-2faeea7208a3",
+      "name": "Generate CSV"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1440,
+        420
+      ],
+      "id": "9d2384e6-5ea6-4696-851a-ab5637c8fcf7",
+      "name": "Loop Over Items1",
+      "executeOnce": false,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://testcase-generator.atlassian.net/rest/api/3/issue/{{$node[\"Testcase Format\"].json.issue}}/attachments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Atlassian-Token",
+              "value": "no-check"
+            },
+            {
+              "name": "X-Requested-With",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "=file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -300,
+        60
+      ],
+      "id": "9248806c-2e97-431b-a63f-fb93508f8baa",
+      "name": "HTTP Request Jira",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "Q42AAnZrFTVWlhU8",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item || {};\nconst outputString = item.json.output;\nlet issueKey = $('Edit Fields').first().json.issue_key || 'DanhSachTestCase';\n\n// Hàm parse thủ công\nfunction tryParseJsonFromAi(raw) {\n  if (!raw || typeof raw !== 'string') return null;\n\n  const cleaned = raw\n    .replace(/^```(?:json)?\\s*/i, '')\n    .replace(/```$/i, '')\n    .trim();\n\n  try {\n    return JSON.parse(cleaned);\n  } catch (err) {\n    throw new Error('Lỗi parse JSON: ' + err.message);\n  }\n}\n\nlet parsedData;\ntry {\n  parsedData = tryParseJsonFromAi(outputString);\n} catch (error) {\n  return [{\n    json: {\n      error: 'Không thể phân tích JSON từ output AI',\n      rawOutput: outputString,\n      parseError: error.message,\n      issue: issueKey\n    }\n  }];\n}\n\n// 💡 Lấy testCases dù viết kiểu nào\nconst testCases = Array.isArray(parsedData.testCases)\n  ? parsedData.testCases\n  : Array.isArray(parsedData.test_cases)\n    ? parsedData.test_cases\n    : [];\n\nif (testCases.length === 0) {\n  return [{\n    json: {\n      error: 'Không có test case nào trong output',\n      rawData: parsedData,\n      issue: issueKey\n    }\n  }];\n}\n\n// ✅ Format từng test case thành item riêng biệt\nreturn testCases.map((tc, index) => ({\n  json: {\n    issue: issueKey,\n    testCaseId: tc['Test Case ID'] || `TC${index + 1}`,\n    preconditions: tc['Tiền điều kiện'] || '',\n    description: tc['Mô tả'] || '',\n    testSteps: Array.isArray(tc['Các bước thực hiện']) ? tc['Các bước thực hiện'].join('\\n') : '',\n    testData: tc['Dữ liệu kiểm thử'] || [],\n    expectedResult: tc['Kết quả mong đợi'] || '',\n    createdAt: new Date().toISOString()\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        60
+      ],
+      "id": "8a4ef61e-c4f1-476e-89ee-9493c86201fb",
+      "name": "Testcase Format"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Validate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Data": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "HTTP Request Playwright Service": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Fix Bug",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Bug": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract URL": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request DOM",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request DOM": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "MergeData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MergeData": {
+      "main": [
+        [
+          {
+            "node": "Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Playwright Service1": {
+      "main": [
+        [
+          {
+            "node": "Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Report": {
+      "main": [
+        []
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "ScriptFormat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "ScriptFormat1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Testcase Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScriptFormat1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Playwright Service1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScriptFormat": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Playwright Service",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Results": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extract URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate CSV": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Testcase Format": {
+      "main": [
+        [
+          {
+            "node": "Generate CSV",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fb6d29e6-102d-4f3e-a7b4-d316326a7b5a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "63511cc13a92f02b3783417928230a1b7ee403f540e7d2dc6d7b221ed26d9887"
+  },
+  "id": "XgHBlGbIlJayvtGd",
+  "tags": []
+}
